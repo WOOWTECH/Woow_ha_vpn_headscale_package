@@ -1,0 +1,37 @@
+---
+configuration:
+  server_url:
+    name: Server URL
+    description: >-
+      Public URL that Tailscale clients use to reach this control plane (e.g.
+      http://homeassistant.local:28080 for LAN testing, or
+      https://headscale.example.com for internet-exposed setups). The domain
+      here MUST differ from "MagicDNS base domain" — Headscale refuses to
+      start otherwise.
+  log_level:
+    name: Log level
+    description: Verbosity of Headscale logs.
+  ipv4_prefix:
+    name: IPv4 prefix
+    description: >-
+      IPv4 range for tailnet addresses. Must be a subnet of 100.64.0.0/10.
+  ipv6_prefix:
+    name: IPv6 prefix
+    description: >-
+      IPv6 range for tailnet addresses. Must be a subnet of
+      fd7a:115c:a1e0::/48.
+  magic_dns_base_domain:
+    name: MagicDNS base domain
+    description: >-
+      Suffix appended to node hostnames (e.g. "phone.ts.local"). MUST differ
+      from the server URL's domain.
+  headplane_enabled:
+    name: Enable Headplane dashboard
+    description: >-
+      Run the bundled Headplane web UI on port 3000 (path /admin). Log in
+      with the API key printed in the add-on log on first start.
+  create_default_user:
+    name: Create default user on first start
+    description: >-
+      When enabled, the add-on creates a Headscale user named "default" on
+      first start (idempotent — safe to leave on).

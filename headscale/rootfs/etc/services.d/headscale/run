@@ -1,0 +1,8 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Woow Headscale VPN — headscale server (long-run)
+# ==============================================================================
+
+bashio::log.info 'Starting the Headscale control plane...'
+exec headscale serve

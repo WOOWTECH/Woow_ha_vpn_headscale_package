@@ -1,0 +1,69 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Woow Headscale VPN — headplane dashboard + one-shot init
+#
+# This service also handles the one-shot bootstrap actions from HANDOFF §6
+# because both need Headscale's /health to be ready first:
+#   1. Create the default user (idempotent, when create_default_user=true)
+#   2. Auto-provision a Headscale API key for Headplane and inject it into
+#      /etc/headplane/config.yaml (so users don't need to run apikeys create
+#      by hand on first install)
+# When headplane_enabled=false the script still waits for /health, does the
+# user creation, then exits cleanly via `s6-svc -O` (do-not-restart).
+# ==============================================================================
+
+readonly HEALTH_URL='http://127.0.0.1:8080/health'
+readonly DATA='/var/lib/headscale'
+readonly KEY_FILE="${DATA}/.headplane_api_key"
+
+# ---------------------------------------------------------------- wait /health
+bashio::log.info 'Waiting for Headscale /health...'
+for _ in $(seq 1 60); do
+    curl -sf "${HEALTH_URL}" > /dev/null && break
+    sleep 1
+done
+if ! curl -sf "${HEALTH_URL}" > /dev/null; then
+    bashio::exit.nok 'Headscale did not become healthy within 60s'
+fi
+bashio::log.info 'Headscale is healthy.'
+
+# ------------------------------------------------------ default user (§6, §7-6)
+if bashio::config.true 'create_default_user'; then
+    if headscale users list --output=json 2>/dev/null \
+        | grep -q '"name":\s*"default"'; then
+        bashio::log.info "Default user already exists — skipping."
+    else
+        bashio::log.info 'Creating default user...'
+        headscale users create default || bashio::log.warning \
+            "headscale users create returned non-zero (may already exist)"
+    fi
+fi
+
+# ----------------------------------------------- exit early if headplane is off
+if ! bashio::config.true 'headplane_enabled'; then
+    bashio::log.info "Headplane disabled — init complete, service exiting."
+    s6-svc -O "$(pwd)"
+    exit 0
+fi
+
+# ---------------------------------------------- api key + inject into config
+if [[ ! -s "${KEY_FILE}" ]]; then
+    bashio::log.info 'Provisioning a long-lived Headplane API key (10y)...'
+    headscale apikeys create --expiration 3650d \
+        | tail -n1 | tr -d '[:space:]' > "${KEY_FILE}"
+    bashio::log.info "API key stored at ${KEY_FILE}"
+fi
+yq -i ".headscale.api_key = \"$(< "${KEY_FILE}")\"" \
+    /etc/headplane/config.yaml
+
+bashio::log.info '=========================================================='
+bashio::log.info "Headplane API key (use to log in at /admin):"
+bashio::log.info "  $(< "${KEY_FILE}")"
+bashio::log.info '=========================================================='
+
+# ---------------------------------------------- start headplane (long-run)
+bashio::log.info 'Starting Headplane dashboard...'
+cd /opt/headplane \
+    || bashio::exit.nok 'Headplane application directory is missing'
+exec /opt/nodejs/bin/node build/server/index.js

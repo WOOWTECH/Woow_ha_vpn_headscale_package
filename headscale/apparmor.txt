@@ -1,0 +1,54 @@
+#include <tunables/global>
+
+profile headscale flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Networking: headscale :8080/:9090, headplane :3000
+  network,
+  unix,
+
+  # Headplane reloads headscale with SIGHUP after config changes and finds
+  # its PID by scanning /proc (integration.proc.enabled: true)
+  signal,
+  ptrace (read),
+  @{PROC}/{,**} r,
+  /sys/** r,
+
+  # S6-Overlay / bashio. The supervision tree is copied under /run at boot
+  # and executed from there: the whole /run needs inherit-exec.
+  /init rix,
+  /package/** rix,
+  /command/** rix,
+  /bin/** rix,
+  /usr/bin/** rix,
+  /usr/sbin/** rix,
+  /usr/lib/** rix,
+  /usr/lib/bashio/** rix,
+  /etc/s6/** rix,
+  /etc/services.d/** rix,
+  /etc/cont-init.d/** rix,
+  /run/{,**} rwk,
+  /run/** rix,
+  /var/run/{,**} rwk,
+  /var/run/** rix,
+  /tmp/{,**} rwk,
+  /dev/tty rw,
+
+  # Container /etc is ephemeral: init scripts write/symlink there (timezone)
+  # and we render configs into it.
+  /etc/{,**} rwlk,
+  /var/lib/headscale/{,**} rwk,
+  /usr/share/** rix,
+
+  # debian-base timezone init runs dpkg-reconfigure tzdata
+  /var/lib/dpkg/{,**} rwk,
+  /var/lib/dpkg/** rix,
+  /var/cache/debconf/{,**} rwk,
+  /var/log/{,**} rw,
+
+  # Headplane application + Node.js runtime ("m" for dlopen/mmap of native
+  # modules bundled with the app, e.g. libsql's index.node)
+  /opt/headplane/{,**} mr,
+  /opt/nodejs/** mrix,
+}
