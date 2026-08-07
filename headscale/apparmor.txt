@@ -4,7 +4,8 @@ profile headscale flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/nameservice>
 
-  # Networking: headscale :8080/:9090, headplane :3000
+  # Networking: headscale :8080/:9090, nginx ingress shim :3000,
+  # headplane :3001 (loopback), optional ngrok tunnel (outbound)
   network,
   unix,
 
@@ -23,6 +24,8 @@ profile headscale flags=(attach_disconnected,mediate_deleted) {
   /bin/** rix,
   /usr/bin/** rix,
   /usr/sbin/** rix,
+  # ngrok ships to /usr/local/bin; without this the optional tunnel is blocked
+  /usr/local/bin/** rix,
   /usr/lib/** rix,
   /usr/lib/bashio/** rix,
   /etc/s6/** rix,
@@ -39,6 +42,8 @@ profile headscale flags=(attach_disconnected,mediate_deleted) {
   # and we render configs into it.
   /etc/{,**} rwlk,
   /var/lib/headscale/{,**} rwk,
+  # nginx runtime temp dirs (client body / proxy temp) + pid
+  /var/lib/nginx/{,**} rwk,
   /usr/share/** rix,
 
   # debian-base timezone init runs dpkg-reconfigure tzdata

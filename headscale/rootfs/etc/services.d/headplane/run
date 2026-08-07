@@ -1,69 +1,59 @@
 #!/command/with-contenv bashio
 # shellcheck shell=bash
 # ==============================================================================
-# Woow Headscale VPN — headplane dashboard + one-shot init
+# Woow Headscale VPN（WoowTech Home Assistant add-on）
+# services.d/headplane：等 Headscale 就緒 → 建預設 user / 簽發 API key
+# （皆 idempotent）→ 注入 api_key → 啟動 Headplane
+# （listen 127.0.0.1:3001，僅供 nginx ingress shim 代理，不開 host port）
 #
-# This service also handles the one-shot bootstrap actions from HANDOFF §6
-# because both need Headscale's /health to be ready first:
-#   1. Create the default user (idempotent, when create_default_user=true)
-#   2. Auto-provision a Headscale API key for Headplane and inject it into
-#      /etc/headplane/config.yaml (so users don't need to run apikeys create
-#      by hand on first install)
-# When headplane_enabled=false the script still waits for /health, does the
-# user creation, then exits cleanly via `s6-svc -O` (do-not-restart).
+# 出處：AlessioBazzanella/homeassistant-headscale-addon（headplane service）
+#       yuriy1337/headscale-ha（API key 落檔 + ingress 自動登入模型）
 # ==============================================================================
-
+readonly KEY_FILE='/var/lib/headscale/.headplane_api_key'
+readonly HEADPLANE_CONFIG='/etc/headplane/config.yaml'
 readonly HEALTH_URL='http://127.0.0.1:8080/health'
-readonly DATA='/var/lib/headscale'
-readonly KEY_FILE="${DATA}/.headplane_api_key"
 
-# ---------------------------------------------------------------- wait /health
-bashio::log.info 'Waiting for Headscale /health...'
-for _ in $(seq 1 60); do
-    curl -sf "${HEALTH_URL}" > /dev/null && break
+# 等待窗口需涵蓋 ngrok 模式下 headscale 的最壞啟動時間：headscale/run 會先
+# 輪詢 ngrok tunnel 最多 120 秒才 exec headscale serve，故此處用 180 秒，
+# 避免正常 ngrok 慢啟動路徑每 60 秒噴一次 FATAL 再被 s6 重啟。
+bashio::log.info '等待 Headscale 就緒（最多 180 秒）...'
+for _ in $(seq 1 180); do
+    if curl -sf "${HEALTH_URL}" > /dev/null 2>&1; then
+        break
+    fi
     sleep 1
 done
-if ! curl -sf "${HEALTH_URL}" > /dev/null; then
-    bashio::exit.nok 'Headscale did not become healthy within 60s'
+if ! curl -sf "${HEALTH_URL}" > /dev/null 2>&1; then
+    bashio::exit.nok 'Headscale 未在 180 秒內就緒，不啟動 Headplane（service 會自動重試）'
 fi
-bashio::log.info 'Headscale is healthy.'
 
-# ------------------------------------------------------ default user (§6, §7-6)
+# ------------------------------------------------------------------------------
+# 預設 user：官方 Tailscale client 註冊裝置時掛在此 user 底下（idempotent）
+# ------------------------------------------------------------------------------
 if bashio::config.true 'create_default_user'; then
-    if headscale users list --output=json 2>/dev/null \
-        | grep -q '"name":\s*"default"'; then
-        bashio::log.info "Default user already exists — skipping."
+    if headscale users list --output json 2>/dev/null \
+        | jq -e 'any(.[]?; .name == "default")' > /dev/null 2>&1; then
+        bashio::log.info "預設 user 'default' 已存在，略過建立"
     else
-        bashio::log.info 'Creating default user...'
-        headscale users create default || bashio::log.warning \
-            "headscale users create returned non-zero (may already exist)"
+        bashio::log.info "建立預設 user 'default'..."
+        headscale users create default \
+            || bashio::log.warning "建立 user 'default' 失敗（可能已存在），繼續啟動"
     fi
 fi
 
-# ----------------------------------------------- exit early if headplane is off
-if ! bashio::config.true 'headplane_enabled'; then
-    bashio::log.info "Headplane disabled — init complete, service exiting."
-    s6-svc -O "$(pwd)"
-    exit 0
-fi
-
-# ---------------------------------------------- api key + inject into config
+# ------------------------------------------------------------------------------
+# Headplane 用的 Headscale API key：只在檔案不存在（或為空）時簽發，
+# 存於 /var/lib/headscale（data map）→ 隨 HA backup 備份、跨重啟存活；
+# 亦由 nginx 的 /_ha_key（僅 ingress 可達）提供給自動登入 script。
+# ------------------------------------------------------------------------------
 if [[ ! -s "${KEY_FILE}" ]]; then
-    bashio::log.info 'Provisioning a long-lived Headplane API key (10y)...'
+    bashio::log.info '簽發 Headplane 用的 Headscale API key（效期 3650 天）...'
     headscale apikeys create --expiration 3650d \
         | tail -n1 | tr -d '[:space:]' > "${KEY_FILE}"
-    bashio::log.info "API key stored at ${KEY_FILE}"
 fi
-yq -i ".headscale.api_key = \"$(< "${KEY_FILE}")\"" \
-    /etc/headplane/config.yaml
+yq -i ".headscale.api_key = \"$(< "${KEY_FILE}")\"" "${HEADPLANE_CONFIG}"
 
-bashio::log.info '=========================================================='
-bashio::log.info "Headplane API key (use to log in at /admin):"
-bashio::log.info "  $(< "${KEY_FILE}")"
-bashio::log.info '=========================================================='
-
-# ---------------------------------------------- start headplane (long-run)
-bashio::log.info 'Starting Headplane dashboard...'
+bashio::log.info 'Starting Headplane (127.0.0.1:3001)...'
 cd /opt/headplane \
     || bashio::exit.nok 'Headplane application directory is missing'
 exec /opt/nodejs/bin/node build/server/index.js

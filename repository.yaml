@@ -1,3 +1,4 @@
+---
 name: "WoowTech Home Assistant Add-ons — Headscale VPN"
-url: https://github.com/WOOWTECH/Woow_ha_vpn_headscale_package
-maintainer: WoowTech
+url: "https://github.com/WOOWTECH/Woow_ha_vpn_headscale_package"
+maintainer: "WoowTech <service@woowtech.io>"
