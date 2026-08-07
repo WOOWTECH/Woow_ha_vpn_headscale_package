@@ -33,6 +33,11 @@
 # ⚠️ sub_filter/sed 規則版本敏感：headplane 版本 bump 時本檔須整組回歸測試。
 # ==============================================================================
 
+# worker 以 root 執行：HA add-on 容器無 CAP_CHOWN，nginx master 啟動時會嘗試
+# 把 temp 目錄（/var/lib/nginx/body 等）chown 給 worker user(nobody) 而 EPERM
+# crash-loop；worker=root 時 temp 目錄本已 root-owned，不觸發 chown。此為僅聽
+# 127.0.0.1 上游、只經 HA Ingress 進來的內部 shim，以 root 執行可接受。
+user root;
 daemon off;
 worker_processes 1;
 error_log /proc/1/fd/1 error;
