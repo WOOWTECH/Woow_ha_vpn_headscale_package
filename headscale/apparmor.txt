@@ -9,6 +9,17 @@ profile headscale flags=(attach_disconnected,mediate_deleted) {
   network,
   unix,
 
+  # An enforced AppArmor profile denies every capability not listed here.
+  # nginx starts as root and switches worker credentials (setuid/setgid/
+  # initgroups) and chowns its temp dirs — without these it crash-loops on
+  # EPERM (chown / initgroups). dac_override lets root read across owners;
+  # net_bind_service is harmless headroom for privileged ports.
+  capability chown,
+  capability setuid,
+  capability setgid,
+  capability dac_override,
+  capability net_bind_service,
+
   # Headplane reloads headscale with SIGHUP after config changes and finds
   # its PID by scanning /proc (integration.proc.enabled: true)
   signal,
