@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "repository": "WOOWTECH/Woow_ha_vpn_headscale_package",
+  "components": {
+    "woow-headscale": {
+      "id": "woow-headscale",
+      "name": "Woow Headscale VPN",
+      "version": "0.1.0",
+      "repository": "WOOWTECH/Woow_ha_vpn_headscale_package",
+      "source_sha": "6a8664bb69c92b1d0bad17581dbc85ab8909b01d",
+      "source_path": "headscale",
+      "config_file": "config.yaml",
+      "config_sha256": "sha256:181e1d15c817899623c77825d3873965ffdb8856babace73bb2a30e5e0491469",
+      "archive_sha256": "sha256:14160223147538b21ea4842b72f67d1f06ca71f760e95446e0ba8ef9a826be91",
+      "context_fingerprint": "sha256:93c23984b9b3a670d692bac0e4c928a40e6f9cb7775e8665b022068a810eda87",
+      "material_fingerprint": "sha256:c1295cbe8c057700e56b7d74fc7fe6ac657aa3f217b273f4bab4a703d5fa0665",
+      "architectures": [
+        "aarch64",
+        "amd64"
+      ],
+      "config": {
+        "name": "Woow Headscale VPN",
+        "version": "0.1.0",
+        "slug": "woow-headscale",
+        "description": "Self-hosted Tailscale control plane (Headscale + Headplane) by WoowTech",
+        "url": "https://github.com/WOOWTECH/Woow_ha_vpn_headscale_package",
+        "init": false,
+        "startup": "services",
+        "arch": [
+          "aarch64",
+          "amd64"
+        ],
+        "ingress": true,
+        "ingress_port": 3000,
+        "panel_title": "Headscale VPN",
+        "panel_icon": "mdi:vpn",
+        "ports": {
+          "8080/tcp": 28080,
+          "9090/tcp": null,
+          "50443/tcp": null
+        },
+        "ports_description": {
+          "8080/tcp": "Headscale control plane（tailscale login-server／反代目標）",
+          "9090/tcp": "Metrics（預設關閉）",
+          "50443/tcp": "gRPC remote CLI（需有效 TLS，預設關閉）"
+        },
+        "map": [
+          {
+            "type": "addon_config",
+            "path": "/etc/headscale",
+            "read_only": false
+          },
+          {
+            "type": "data",
+            "path": "/var/lib/headscale"
+          }
+        ],
+        "backup": "cold",
+        "backup_exclude": [
+          "*/logs"
+        ],
+        "options": {
+          "server_url": "http://homeassistant.local:28080",
+          "log_level": "info",
+          "ipv4_prefix": "100.64.0.0/10",
+          "ipv6_prefix": "fd7a:115c:a1e0::/48",
+          "magic_dns_base_domain": "ts.local",
+          "create_default_user": true,
+          "ngrok_enabled": false,
+          "ngrok_authtoken": "",
+          "ngrok_mode": "http",
+          "ngrok_domain": ""
+        },
+        "schema": {
+          "server_url": "url",
+          "log_level": "list(trace|debug|info|warn|error)",
+          "ipv4_prefix": "str",
+          "ipv6_prefix": "str",
+          "magic_dns_base_domain": "str",
+          "create_default_user": "bool",
+          "ngrok_enabled": "bool",
+          "ngrok_authtoken": "password?",
+          "ngrok_mode": "list(http|tcp)",
+          "ngrok_domain": "str?"
+        }
+      },
+      "source_build_supported": true,
+      "images": {},
+      "delivery": "local-source-build",
+      "validation": "manifest+source-context+configured-CI (runtime build not certified)",
+      "publisher_run_id": "37410582924",
+      "channel": "stable"
+    }
+  }
+}
