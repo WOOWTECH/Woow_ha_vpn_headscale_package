@@ -7,11 +7,11 @@
       "name": "Woow Headscale VPN",
       "version": "0.1.0",
       "repository": "WOOWTECH/Woow_ha_vpn_headscale_package",
-      "source_sha": "6a8664bb69c92b1d0bad17581dbc85ab8909b01d",
+      "source_sha": "104bf44e88b58196f751fc68fce7498744a25403",
       "source_path": "headscale",
       "config_file": "config.yaml",
       "config_sha256": "sha256:181e1d15c817899623c77825d3873965ffdb8856babace73bb2a30e5e0491469",
-      "archive_sha256": "sha256:14160223147538b21ea4842b72f67d1f06ca71f760e95446e0ba8ef9a826be91",
+      "archive_sha256": "sha256:832f79bff78a173d7da50b3f6f75dfab2fac07d148a474af7c8b6055d2844bd2",
       "context_fingerprint": "sha256:93c23984b9b3a670d692bac0e4c928a40e6f9cb7775e8665b022068a810eda87",
       "material_fingerprint": "sha256:c1295cbe8c057700e56b7d74fc7fe6ac657aa3f217b273f4bab4a703d5fa0665",
       "architectures": [
@@ -88,7 +88,7 @@
       "images": {},
       "delivery": "local-source-build",
       "validation": "manifest+source-context+configured-CI (runtime build not certified)",
-      "publisher_run_id": "37410582924",
+      "publisher_run_id": "38209716786",
       "channel": "stable"
     }
   }
