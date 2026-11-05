@@ -29,7 +29,9 @@ release mechanism is described in the Woow_HA_App_Store README (section
    mounted). An optional `headscale/upgrade-check/settings.yaml` sets
    `startup_timeout`, `stable_seconds` and `hook_timeout` (positive integer
    seconds); `hook_timeout` defaults to 600 and covers the whole `docker exec`
-   of a hook.
+   of a hook. The Store registry sets `data_check_due: "2026-12-29"` for this
+   addon (pipeline #141): from the next day (UTC), a version bump without a
+   `verify` hook fails, even when both versions start.
 3. **Breaking changes must be declared in `upgrade-notes.yaml`** next to the
    addon's `config.yaml` (here `headscale/upgrade-notes.yaml`). Create the
    file only when the upgrade comparison asks for it; copy `change` and `key`
