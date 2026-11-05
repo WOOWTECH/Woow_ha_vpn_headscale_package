@@ -82,4 +82,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: WOOWTECH/Woow_HA_App_Store/.github/workflows/woow-addon-upgrade-check.yml@main
+    uses: WOOWTECH/Woow_HA_App_Store/.github/workflows/woow-addon-upgrade-check.yml@upgrade-test-ingress-entry
+    with:
+      tooling_ref: upgrade-test-ingress-entry
