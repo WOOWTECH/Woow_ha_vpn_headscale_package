@@ -16,22 +16,30 @@ release mechanism is described in the Woow_HA_App_Store README (section
    in the job summary. It also runs the upgrade test (pipeline #144): the Store
    rebuilds the latest Release and the PR for amd64, starts the Release under a
    mock Supervisor, then the PR's version on the same data, and fails when
-   either does not start. Without a `verify` hook it checks startup only, not
-   data. To check data, add hooks in `headscale/upgrade-check/`: `seed` writes
-   data on the old version, `verify` checks it on this PR's version. Their
-   interface (environment, JSON report) is in the Woow_HA_App_Store README,
-   "第 2 類 升級測試", paragraph "資料檢查（#138）". Keep the hooks executable
-   (`git update-index --chmod=+x`), with LF endings and a `#!` of python3 or
-   busybox sh only (no bash): they run in the Store's python:3.12-alpine mock
-   Supervisor container, so never `docker run` from them. A hook must not leave
-   background processes running when it exits, and a hook file must not be a
-   symlink to anything outside `upgrade-check/` (only that directory is
-   mounted). An optional `headscale/upgrade-check/settings.yaml` sets
-   `startup_timeout`, `stable_seconds` and `hook_timeout` (positive integer
-   seconds); `hook_timeout` defaults to 600 and covers the whole `docker exec`
-   of a hook. The Store registry sets `data_check_due: "2026-12-29"` for this
-   addon (pipeline #141): from the next day (UTC), a version bump without a
-   `verify` hook fails, even when both versions start.
+   either does not start (here: the ingress port 3000 answers and the
+   container stays up). It also checks data (pipeline #151) with the hooks in
+   `headscale/upgrade-check/`: `seed` takes the add-on's API key from
+   `/_ha_key` on the ingress port and, through Headscale's REST API on port
+   8080, creates a user and a reusable pre-auth key on the Release; `verify`
+   checks on this PR's version that the add-on still serves the same API key
+   and it authenticates, that the user and the pre-auth key are still there
+   unchanged, and that a new user can be created. Keep them working when you
+   change the API port, `/_ha_key`, the nginx allow rule for the Supervisor
+   address or the data directory; a failing check blocks the release. The
+   hook interface (environment, JSON report) is in the Woow_HA_App_Store
+   README, "第 2 類 升級測試", paragraph "資料檢查（#138）". Keep the hooks
+   executable (`git update-index --chmod=+x`), with LF endings and a `#!` of
+   python3 or busybox sh only (no bash): they run in the Store's
+   python:3.12-alpine mock Supervisor container, so never `docker run` from
+   them. A hook must not leave background processes running when it exits,
+   and a hook file must not be a symlink to anything outside `upgrade-check/`
+   (only that directory is mounted). An optional
+   `headscale/upgrade-check/settings.yaml` sets `startup_timeout`,
+   `stable_seconds` and `hook_timeout` (positive integer seconds);
+   `hook_timeout` defaults to 600 and covers the whole `docker exec` of a
+   hook. The Store registry sets `data_check_due: "2026-12-29"` for this addon
+   (pipeline #141): from the next day (UTC), a version bump without a `verify`
+   hook fails, so do not remove it.
 3. **Breaking changes must be declared in `upgrade-notes.yaml`** next to the
    addon's `config.yaml` (here `headscale/upgrade-notes.yaml`). Create the
    file only when the upgrade comparison asks for it; copy `change` and `key`
