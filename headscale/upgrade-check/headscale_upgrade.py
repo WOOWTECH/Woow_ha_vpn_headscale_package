@@ -39,12 +39,24 @@ import urllib.request
 
 API_PORT = 8080
 READY_TIMEOUT = 300
+# The whole hook stays inside this, so it always writes its report: the Store
+# kills a hook at hook_timeout (600 s; no settings.yaml here) before it can.
+HOOK_BUDGET = 480
+DEADLINE = time.monotonic() + HOOK_BUDGET
 STATE_FILE = "headscale-seed.json"
 KEY_DAYS = 30
 
 
 def sha256(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def time_left(cap: float) -> float:
+    """At most `cap` seconds, and no more than the hook has left; fails the check once the budget is used up."""
+    left = DEADLINE - time.monotonic()
+    if left < 1:
+        raise AssertionError(f"the hook's {HOOK_BUDGET} s budget is used up (hook_timeout is 600 s)")
+    return min(cap, left)
 
 
 class Client:
@@ -67,6 +79,7 @@ class Client:
         if auth and self.key:
             headers["Authorization"] = f"Bearer {self.key}"
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
+        timeout = time_left(timeout)
         try:
             with self.opener.open(req, timeout=timeout) as response:
                 return response.status, response.read()
@@ -88,17 +101,20 @@ class Client:
 
     def wait_health(self) -> str:
         """/health until it answers 200 (Headscale has opened and migrated its database)."""
-        deadline = time.monotonic() + READY_TIMEOUT
+        deadline = time.monotonic() + time_left(READY_TIMEOUT)
         while True:
             code, raw = self.request("GET", self.api + "/health", auth=False, timeout=10)
             if code == 200:
                 return f"/health -> 200 {raw[:100].decode(errors='replace').strip()}"
-            if time.monotonic() > deadline:
-                raise AssertionError(f"no /health within {READY_TIMEOUT} s: last {code} {raw[:200].decode(errors='replace')}")
+            if time.monotonic() > deadline - 2:
+                raise AssertionError(f"no /health within the wait: last {code} {raw[:200].decode(errors='replace')}")
             time.sleep(2)
 
     def version(self) -> str:
-        code, raw = self.request("GET", self.api + "/version", auth=False, timeout=10)
+        try:
+            code, raw = self.request("GET", self.api + "/version", auth=False, timeout=10)
+        except AssertionError:  # out of time: the version is only report text
+            return "unknown"
         if code != 200:
             return "unknown"
         try:
@@ -108,16 +124,16 @@ class Client:
 
     def wait_key(self) -> str:
         """The add-on's API key from /_ha_key (Headplane's service issues it once Headscale is up)."""
-        deadline = time.monotonic() + READY_TIMEOUT
+        deadline = time.monotonic() + time_left(READY_TIMEOUT)
         while True:
             code, raw = self.request("GET", self.ingress + "/_ha_key", auth=False, timeout=10)
             key = raw.decode(errors="replace").strip() if code == 200 else ""
             if key and "\n" not in key and " " not in key:
                 self.key = key
                 return key
-            if time.monotonic() > deadline:
+            if time.monotonic() > deadline - 2:
                 shown = "an empty body" if code == 200 else raw[:120].decode(errors="replace")
-                raise AssertionError(f"GET {self.ingress}/_ha_key gave no API key within {READY_TIMEOUT} s: {code} {shown}")
+                raise AssertionError(f"GET {self.ingress}/_ha_key gave no API key within the wait: {code} {shown}")
             time.sleep(2)
 
     def users(self) -> list[dict]:
