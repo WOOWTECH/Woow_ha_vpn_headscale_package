@@ -213,10 +213,18 @@ def state_path() -> str:
     return os.path.join(os.environ["HOOK_STATE_DIR"], STATE_FILE)
 
 
+def flag(key: dict, field: str) -> bool:
+    """A pre-auth key's boolean field. Headscale always lists it, false too, so a missing or
+    non-boolean value means the field was renamed: fail instead of reading it as False."""
+    value = key.get(field)
+    assert isinstance(value, bool), f"pre-auth key has no boolean {field!r} (fields: {sorted(key)})"
+    return value
+
+
 def key_fields(key: dict) -> dict[str, object]:
     """What verify compares of a pre-auth key."""
     return {"id": str(key.get("id")), "user": str((key.get("user") or {}).get("id")),
-            "reusable": bool(key.get("reusable")), "ephemeral": bool(key.get("ephemeral")),
+            "reusable": flag(key, "reusable"), "ephemeral": flag(key, "ephemeral"),
             "expiration": key.get("expiration")}
 
 
