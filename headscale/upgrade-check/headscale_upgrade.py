@@ -12,8 +12,10 @@ verify   Headscale is up on the new version (it runs its database migrations
          before it serves /health), the add-on still hands out the same API
          key and it still authenticates, the user is still there with the same
          id and name, the pre-auth key is still there with the same id, user,
-         key, reusable flag and expiration, and creating (then deleting) a new
-         user works.
+         reusable and ephemeral flags and expiration time, and creating (then
+         deleting) a new user works. The key text and the timestamp's form are
+         not compared: a version may list only the key's prefix, or write the
+         time another way, and the key is still the same one.
 
 Credentials: the full-admin API key the add-on issues for Headplane on its
 first start (services.d/headplane/run, kept in its data directory) and serves
@@ -30,6 +32,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -39,23 +42,48 @@ import urllib.request
 
 API_PORT = 8080
 READY_TIMEOUT = 300
-# The whole hook stays inside this, so it always writes its report: the Store
-# kills a hook at hook_timeout (600 s; no settings.yaml here) before it can.
-HOOK_BUDGET = 480
-DEADLINE = time.monotonic() + HOOK_BUDGET
 STATE_FILE = "headscale-seed.json"
 KEY_DAYS = 30
+
+
+def hook_timeout() -> int:
+    """The Store's hook_timeout: this directory's settings.yaml if it sets one, else the Store's default 600 s.
+
+    Only a top-level `hook_timeout: <seconds>` line is read (the hooks have no YAML library).
+    """
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.yaml"), encoding="utf-8") as f:
+            for line in f:
+                match = re.match(r"""hook_timeout\s*:\s*["']?(\d+)["']?\s*(#.*)?$""", line.rstrip())
+                if match:
+                    return int(match.group(1))
+    except OSError:
+        pass
+    return 600
+
+
+HOOK_TIMEOUT = hook_timeout()
+# The whole hook ends this far inside hook_timeout, so it always writes its
+# report before the Store kills it.
+HOOK_BUDGET = max(HOOK_TIMEOUT - 120, HOOK_TIMEOUT // 2)
+DEADLINE = time.monotonic() + HOOK_BUDGET
 
 
 def sha256(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def when(text: object) -> datetime.datetime:
+    """A Headscale timestamp, whatever its form (Z or +00:00, with or without fractional seconds), in UTC."""
+    plain = re.sub(r"\.\d+", "", str(text)).replace("Z", "+00:00")
+    return datetime.datetime.fromisoformat(plain).astimezone(datetime.timezone.utc)
+
+
 def time_left(cap: float) -> float:
     """At most `cap` seconds, and no more than the hook has left; fails the check once the budget is used up."""
     left = DEADLINE - time.monotonic()
     if left < 1:
-        raise AssertionError(f"the hook's {HOOK_BUDGET} s budget is used up (hook_timeout is 600 s)")
+        raise AssertionError(f"the hook's {HOOK_BUDGET} s budget is used up (hook_timeout is {HOOK_TIMEOUT} s)")
     return min(cap, left)
 
 
@@ -187,7 +215,7 @@ def state_path() -> str:
 
 def key_fields(key: dict) -> dict[str, object]:
     """What verify compares of a pre-auth key."""
-    return {"id": str(key.get("id")), "user": str((key.get("user") or {}).get("id")), "key": key.get("key"),
+    return {"id": str(key.get("id")), "user": str((key.get("user") or {}).get("id")),
             "reusable": bool(key.get("reusable")), "ephemeral": bool(key.get("ephemeral")),
             "expiration": key.get("expiration")}
 
@@ -224,10 +252,9 @@ def seed() -> int:
         listed = [k for k in hs.preauthkeys(uid) if str(k.get("id")) == str(made["id"])]
         assert len(listed) == 1, f"GET /api/v1/preauthkey lists {len(listed)} keys with id {made['id']}"
         fields = key_fields(listed[0])
-        assert fields["user"] == uid and fields["reusable"] is True, f"listed key is {dict(fields, key='…')}"
-        # The list may show the key in full or only its prefix; verify compares what the list showed.
-        state["preauthkey"] = dict(fields, key_sha256=sha256(str(fields["key"])))
-        del state["preauthkey"]["key"]
+        assert fields["user"] == uid and fields["reusable"] is True, f"listed key is {fields}"
+        when(fields["expiration"])  # verify compares it as a time, so it must read as one now
+        state["preauthkey"] = fields
         return f"reusable pre-auth key id {made['id']} for {state['user']['name']}, expires {fields['expiration']}"
     checks.run("pre-auth key created", preauthkey, bool(made_user))
 
@@ -278,12 +305,13 @@ def verify() -> int:
         listed = [k for k in hs.preauthkeys(want["user"]) if str(k.get("id")) == want["id"]]
         assert len(listed) == 1, f"no pre-auth key with id {want['id']} for user id {want['user']}"
         got = key_fields(listed[0])
-        assert sha256(str(got["key"])) == want["key_sha256"], "the pre-auth key's key differs from before the upgrade"
-        for field in ("user", "reusable", "ephemeral", "expiration"):
+        for field in ("user", "reusable", "ephemeral"):
             assert got[field] == want[field], f"{field} is {got[field]!r}, {want[field]!r} before the upgrade"
-        expires = datetime.datetime.fromisoformat(str(got["expiration"]).replace("Z", "+00:00"))
+        expires = when(got["expiration"])
+        assert expires == when(want["expiration"]), \
+            f"expiration is {got['expiration']}, {want['expiration']} before the upgrade"
         assert expires > datetime.datetime.now(datetime.timezone.utc), f"the key expired at {got['expiration']}"
-        return f"pre-auth key id {want['id']}: same key, user, reusable, expiration {got['expiration']}"
+        return f"pre-auth key id {want['id']}: same user, reusable, ephemeral, expiration {got['expiration']}"
     checks.run("pre-auth key still exists", key_kept, bool(has_user))
 
     def new_user() -> str:
