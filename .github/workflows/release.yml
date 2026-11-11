@@ -2,7 +2,7 @@ name: Release
 
 # The App Store ships only published Releases of this repository (registry
 # ref_policy: release). Every push to main validates each add-on and builds
-# its amd64 image the way a Home Assistant host builds it locally; when that
+# its amd64/aarch64 images the way a Home Assistant host builds them locally; when that
 # passes, the Store's shared workflow publishes the Release for a config.yaml
 # version that has none yet. A version that is already released is left alone.
 
@@ -24,12 +24,18 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate and build ${{ matrix.addon }} (amd64)
-    runs-on: ubuntu-latest
+    name: Validate and build ${{ matrix.addon }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        addon: [headscale]
+        include:
+          - addon: headscale
+            arch: amd64
+            runner: ubuntu-24.04
+          - addon: headscale
+            arch: aarch64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
@@ -42,18 +48,19 @@ jobs:
           for key in name slug version arch; do
             [ "$(yq -r ".${key} // \"\"" "${ADDON}/config.yaml")" != "" ] || { echo "::error::${ADDON}/config.yaml has no ${key}"; exit 1; }
           done
-          yq -e '.arch[] | select(. == "amd64")' "${ADDON}/config.yaml" >/dev/null || { echo "::error::${ADDON} does not support amd64"; exit 1; }
+          yq -e '.arch[] | select(. == "${{ matrix.arch }}")' "${ADDON}/config.yaml" >/dev/null || { echo "::error::${ADDON} does not support ${{ matrix.arch }}"; exit 1; }
           echo "version=$(yq -r '.version' "${ADDON}/config.yaml")" >> "$GITHUB_OUTPUT"
-          echo "base=$(yq -r '.build_from.amd64 // ""' "${ADDON}/build.yaml")" >> "$GITHUB_OUTPUT"
+          echo "base=$(yq -r '.build_from.${{ matrix.arch }} // ""' "${ADDON}/build.yaml")" >> "$GITHUB_OUTPUT"
 
-      - name: Build the amd64 image
+      - name: Build the add-on image
         env:
           ADDON: ${{ matrix.addon }}
           BASE: ${{ steps.manifest.outputs.base }}
           VERSION: ${{ steps.manifest.outputs.version }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          args=(--build-arg BUILD_ARCH=amd64 --build-arg "BUILD_VERSION=${VERSION}")
+          args=(--build-arg "BUILD_ARCH=${ARCH}" --build-arg "BUILD_VERSION=${VERSION}")
           [ -z "${BASE}" ] || args+=(--build-arg "BUILD_FROM=${BASE}")
           # Supervisor also passes build.yaml's args as build arguments.
           if [ -f "${ADDON}/build.yaml" ]; then
@@ -62,6 +69,19 @@ jobs:
               < <(python3 -c 'import sys, yaml; [print(f"{k}={v}") for k, v in ((yaml.safe_load(open(sys.argv[1])) or {}).get("args") or {}).items()]' "${ADDON}/build.yaml")
           fi
           docker build "${args[@]}" -t "local/${ADDON}:${VERSION}" "${ADDON}"
+
+      - name: Smoke test Headscale and Headplane artifacts
+        env:
+          ADDON: ${{ matrix.addon }}
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          docker run --rm --entrypoint /bin/sh "local/${ADDON}:${VERSION}" -ec '
+            headscale version
+            test -f /opt/headplane/build/server/index.js
+            grep -q '\''"mode": "initial"'\'' /opt/headplane/build/server/index.js
+            test -d /opt/nodejs
+            nginx -v
+          '
 
   release:
     name: Release
