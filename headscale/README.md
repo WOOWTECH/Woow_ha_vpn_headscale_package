@@ -17,7 +17,7 @@
 2. Configuration 設定 `server_url`（區網測試：`http://<HA_IP>:28080`）→ 啟動。
 3. 裝置端：`tailscale up --login-server=http://<HA_IP>:28080`，依 Log / 註冊頁指示完成核准。
 
-若要用 HA 圖形介面配對另一台 HA 主機，先在 Headplane **Users** 選擇歸屬者並建立單次 pre-auth key，再到 **Woow Tailscale 0.1.5+ → Configuration** 填入 `login_server` 與遮罩欄位 `auth_key`。連線成功後 key 會從設定中清除；詳見 [DOCS.md](./DOCS.md)。
+若要用 HA 圖形介面配對另一台 HA 主機，先在 Headplane **Settings → Manage Auth Keys → Create pre-auth key** 選擇歸屬者並建立單次 key，再到 **Woow Tailscale 0.1.5+ → Configuration** 填入 `login_server` 與遮罩欄位 `auth_key`。連線成功後 key 會從設定中清除；詳見 [DOCS.md](./DOCS.md)。
 
 完整說明（架構、port 分層、曝露教學、裝置註冊、備份還原、troubleshooting）見 add-on 的 **Documentation** 分頁（[DOCS.md](./DOCS.md)）。
 

@@ -117,7 +117,7 @@ tailscale up --login-server=http://<HA_IP>:28080
 
 ### 6.3 Pre-auth key（免互動註冊，適合批量/無頭裝置）
 
-在 Headplane **Users** 頁產生 pre-auth key，或用 CLI（`--user` 在 headscale 0.29 需要**數字 user ID**，先 `headscale users list` 查）：
+在 Headplane **Settings → Manage Auth Keys → Create pre-auth key** 的彈窗選擇 **User**，保持 **Reusable 關閉**以建立單次 key；若尚無使用者，先到 **Users** 建立。也可用 CLI（`--user` 在 headscale 0.29 需要**數字 user ID**，先 `headscale users list` 查）：
 
 ```bash
 headscale users list                                # 查 ID，例如 default = 1
@@ -134,7 +134,7 @@ tailscale up --login-server=<server_url> --authkey=<key>
 
 若要在 HA 圖形介面完成配對，請使用 **Woow Tailscale 0.1.5 以上版本**：
 
-1. 在本 add-on 的 **Web UI（Headplane）→ Users** 建立或選擇裝置歸屬者，再為該使用者產生**單次使用**的 pre-auth key。可在建立時設定有效時間及 ACL tags。這是裝置加入用的 key，**不是** Headscale 管理 API key。
+1. 在本 add-on 的 **Web UI（Headplane）→ Users** 建立裝置歸屬者（若已存在可略過），再到 **Settings → Manage Auth Keys → Create pre-auth key**，於彈窗選擇 **User**、保持 **Reusable 關閉**，產生**單次使用**的 pre-auth key。可在彈窗設定有效時間及 ACL tags。這是裝置加入用的 key，**不是** Headscale 管理 API key。
 2. 到 **Woow Tailscale → Configuration**，把此 add-on 可連線的 `server_url` 填入 `login_server`，把單次 key 貼入遮罩欄位 `auth_key`，儲存並啟動或重新啟動。`server_url` 是控制入口（例如 `http://<HA_IP>:28080` 或對外 HTTPS/ngrok），**不是** HA Ingress 的 Headplane 網址。
 3. 到 Woow Tailscale 的 **Web UI** 查看已連線狀態與 `100.x.x.x` 位址，再回 Headplane **Machines** 確認節點與歸屬者。配對成功後，Woow Tailscale 會自動清除 HA 設定內的 `auth_key`；若失敗，更新過期或無效 key 後再重新啟動。
 
