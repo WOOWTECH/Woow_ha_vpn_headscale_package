@@ -5,22 +5,22 @@
     "woow-headscale": {
       "id": "woow-headscale",
       "name": "Woow Headscale VPN",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "repository": "WOOWTECH/Woow_ha_vpn_headscale_package",
-      "source_sha": "104bf44e88b58196f751fc68fce7498744a25403",
+      "source_sha": "b30901e09e447c687f4a17cc9d7dcb786b26e62d",
       "source_path": "headscale",
       "config_file": "config.yaml",
-      "config_sha256": "sha256:181e1d15c817899623c77825d3873965ffdb8856babace73bb2a30e5e0491469",
-      "archive_sha256": "sha256:832f79bff78a173d7da50b3f6f75dfab2fac07d148a474af7c8b6055d2844bd2",
-      "context_fingerprint": "sha256:93c23984b9b3a670d692bac0e4c928a40e6f9cb7775e8665b022068a810eda87",
-      "material_fingerprint": "sha256:c1295cbe8c057700e56b7d74fc7fe6ac657aa3f217b273f4bab4a703d5fa0665",
+      "config_sha256": "sha256:94be089a543f0bad52cd04b092060746224bde277157a12e5e5f0cecd849c458",
+      "archive_sha256": "sha256:69b7a30a21b1f54c8d0ff5722a88451af6af5cd21017f5cdd8a4149a2a4ca0a5",
+      "context_fingerprint": "sha256:954f284f2fd860ab33025aa7a4c50c43caf1b70785f0e5a2d08b7b540e57f1e0",
+      "material_fingerprint": "sha256:70bd28139457415f26405938bd44d40c58eb62d44c50c6549e0a2f893af5ea4a",
       "architectures": [
         "aarch64",
         "amd64"
       ],
       "config": {
         "name": "Woow Headscale VPN",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "slug": "woow-headscale",
         "description": "Self-hosted Tailscale control plane (Headscale + Headplane) by WoowTech",
         "url": "https://github.com/WOOWTECH/Woow_ha_vpn_headscale_package",
@@ -88,7 +88,7 @@
       "images": {},
       "delivery": "local-source-build",
       "validation": "manifest+source-context+configured-CI (runtime build not certified)",
-      "publisher_run_id": "38209716786",
+      "publisher_run_id": "42987843172",
       "channel": "stable"
     }
   }
