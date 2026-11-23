@@ -5,6 +5,9 @@
 # ends the container within its 10-second grace period instead of SIGKILL
 # (exit 137). Pipeline unattended-pipeline/213.
 #
+# grep reads captured logs, not a pipe: with pipefail, `docker logs | grep -q`
+# fails whenever grep exits before docker logs has written everything.
+#
 # Needs docker. Usage: bash headscale/tests/test-s6-startup.sh
 set -euo pipefail
 
@@ -81,7 +84,7 @@ docker run -d --name "${container}" --network "${network}" "${image}" > /dev/nul
 
 started=false
 for _ in $(seq 1 30); do
-    if docker logs "${container}" 2>&1 | grep -q 'legacy-services successfully started'; then
+    if grep -q 'legacy-services successfully started' <<< "$(docker logs "${container}" 2>&1)"; then
         started=true
         break
     fi
@@ -100,7 +103,7 @@ if [[ "${exit_code}" == '137' ]]; then
     echo 'FAIL: container was SIGKILLed on stop (exit 137)' >&2
     exit 1
 fi
-if ! docker logs "${container}" 2>&1 | grep -q 'legacy-services: stopping'; then
+if ! grep -q 'legacy-services: stopping' <<< "$(docker logs "${container}" 2>&1)"; then
     docker logs "${container}" 2>&1 | sed 's/^/  log: /' >&2
     echo 'FAIL: s6 did not run the legacy-services stop' >&2
     exit 1
